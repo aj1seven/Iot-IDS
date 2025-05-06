@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Intrusion Detection</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+    background: url('static/hacker.png') no-repeat center center fixed;
+    background-size: cover;
+}
+
+        .container {
+            max-width: 700px;
+            margin-top: 50px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .result-box, .csv-results-box {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 18px;
+            text-align: center;
+            display: none;
+        }
+        .attack-details-box {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 16px;
+            display: none;
+        }
+        .btn-predict, .btn-upload {
+            width: 100%;
+            font-size: 18px;
+        }
+        table {
+            width: 100%;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    
+
+<div class="container">
+    <h1>🚀 IoT-IDS using Deep Learning</h1>
+
+    <!-- Single Entry Prediction Form -->
+    <form id="predictForm" action="/predict" method="post">
+        <h2>🔍 Single Entry Prediction</h2>
+
+        <div class="mb-3">
+            <label class="form-label">Protocol Type:</label>
+            <select class="form-select" name="protocol_type">
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+                <option value="icmp">ICMP</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Flag:</label>
+            <select class="form-select" name="flag">
+                <option value="SF">SF</option>
+                <option value="S0">S0</option>
+                <option value="REJ">REJ</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Source Bytes:</label>
+            <input type="number" class="form-control" name="src_bytes" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Destination Bytes:</label>
+            <input type="number" class="form-control" name="dst_bytes" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Hot:</label>
+            <input type="number" class="form-control" name="hot" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Count:</label>
+            <input type="number" class="form-control" name="count" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Srv Count:</label>
+            <input type="number" class="form-control" name="srv_count" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-predict">Predict</button>
+    </form>
+
+    <!-- Predicted Attack Box -->
+    <div id="predictionResult" class="result-box"></div>
+
+    <!-- Attack Details Box -->
+    <div id="attackDetails" class="attack-details-box"></div>
+
+    <hr>
+
+    <!-- CSV Upload Form -->
+    <form id="csvForm" action="/predict_csv" method="post" enctype="multipart/form-data">
+        <h2>📂 Upload CSV for Batch Prediction</h2>
+        <input type="file" class="form-control" name="file" accept=".csv" required>
+        <br>
+        <button type="submit" class="btn btn-success btn-upload">Upload & Predict</button>
+    </form>
+
+    <!-- Display CSV Prediction Results -->
+    <div id="csvResults" class="csv-results-box">
+        <h2>📊 Batch Prediction Results</h2>
+        <table border="1" class="table">
+            <thead>
+                <tr><th>Index</th><th>Attack Type</th><th>Category</th><th>Confidence Score</th></tr>
+            </thead>
+            <tbody id="csvTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.getElementById("predictForm").addEventListener("submit", function(event) {
+        event.preventDefault();
+        fetch("/predict", {
+            method: "POST",
+            body: new FormData(this),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById("predictionResult").innerHTML = "❌ Error: " + data.error;
+                document.getElementById("predictionResult").style.display = "block";
+                document.getElementById("attackDetails").style.display = "none";
+            } else {
+                document.getElementById("predictionResult").innerHTML = "🔍 Predicted Attack Type: <strong>" + data.attack + "</strong>";
+                document.getElementById("predictionResult").style.display = "block";
+                document.getElementById("attackDetails").innerHTML = `
+                    <h4>🛡 Attack Details</h4>
+                    <p><strong>Attack Type:</strong> ${data.attack}</p>
+                    <p><strong>Category:</strong> ${data.category}</p>
+                    <p><strong>Confidence Score:</strong> ${data.confidence}%</p>
+                `;
+                document.getElementById("attackDetails").style.display = "block";
+            }
+        })
+        .catch(error => console.error("Error:", error));
+    });
+
+    document.getElementById("csvForm").addEventListener("submit", function(event) {
+        event.preventDefault();
+        let formData = new FormData(this);
+        fetch("/predict_csv", {
+            method: "POST",
+            body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert("❌ Error: " + data.error);
+            } else {
+                document.getElementById("csvResults").style.display = "block";
+                let tableBody = document.getElementById("csvTableBody");
+                tableBody.innerHTML = "";
+                data.forEach((result, index) => {
+                    let row = `<tr>
+                        <td>${index + 1}</td>
+                        <td>${result.attack}</td>
+                        <td>${result.category}</td>
+                        <td>${result.confidence}</td>
+                    </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            }
+        })
+        .catch(error => console.error("Error:", error));
+    });
+</script>
+
+</body>
+</html>
